@@ -2,6 +2,7 @@ using UnityEngine;
 using Unity.MLAgents;
 using Unity.MLAgents.Actuators;
 using Unity.MLAgents.Policies;
+using Unity.MLAgents.Sensors;
 
 public enum Team
 {
@@ -11,14 +12,6 @@ public enum Team
 
 public class AgentSoccer : Agent
 {
-    // Note that that the detectable tags are different for the blue and purple teams. The order is
-    // * ball
-    // * own goal
-    // * opposing goal
-    // * wall
-    // * own teammate
-    // * opposing player
-
     public enum Position
     {
         Striker,
@@ -29,7 +22,6 @@ public class AgentSoccer : Agent
     [HideInInspector]
     public Team team;
     float m_KickPower;
-    // The coefficient for the reward for colliding with a ball. Set using curriculum.
     float m_BallTouch;
     public Position position;
 
@@ -37,7 +29,6 @@ public class AgentSoccer : Agent
     float m_Existential;
     float m_LateralSpeed;
     float m_ForwardSpeed;
-
 
     [HideInInspector]
     public Rigidbody agentRb;
@@ -47,6 +38,10 @@ public class AgentSoccer : Agent
     public float rotSign;
 
     EnvironmentParameters m_ResetParams;
+
+    public Transform ball;
+    public Transform ownGoal;
+    public Transform opponentGoal;
 
     public override void Initialize()
     {
@@ -143,9 +138,7 @@ public class AgentSoccer : Agent
     }
 
     public override void OnActionReceived(ActionBuffers actionBuffers)
-
     {
-
         if (position == Position.Goalie)
         {
             // Existential bonus for Goalies.
@@ -156,8 +149,21 @@ public class AgentSoccer : Agent
             // Existential penalty for Strikers
             AddReward(-m_Existential);
         }
+
         MoveAgent(actionBuffers.DiscreteActions);
+
+        // Custom rewards
+        AddCustomRewards();
     }
+
+    private void AddCustomRewards()
+    {
+
+        // Reward for moving the ball towards the opponent's goal
+        float distanceToOpponentGoal = Vector3.Distance(ball.localPosition, opponentGoal.localPosition);
+        AddReward(-0.002f * distanceToOpponentGoal);
+    }
+
 
     public override void Heuristic(in ActionBuffers actionsOut)
     {
@@ -190,9 +196,7 @@ public class AgentSoccer : Agent
             discreteActionsOut[1] = 2;
         }
     }
-    /// <summary>
-    /// Used to provide a "kick" to the ball.
-    /// </summary>
+
     void OnCollisionEnter(Collision c)
     {
         var force = k_Power * m_KickPower;
@@ -207,11 +211,32 @@ public class AgentSoccer : Agent
             dir = dir.normalized;
             c.gameObject.GetComponent<Rigidbody>().AddForce(dir * force);
         }
+        if (c.gameObject.CompareTag("wall"))
+        {
+            AddReward(-0.005f); 
+        }
+    }
+
+    public override void CollectObservations(VectorSensor sensor)
+    {
+        // Agent's velocity
+        sensor.AddObservation(agentRb.velocity);
+
+        // Ball's position and velocity
+        sensor.AddObservation(ball.position);
+        sensor.AddObservation(ball.GetComponent<Rigidbody>().velocity);
+
+        // Positions of own and opponent goals
+        sensor.AddObservation(ownGoal.position);
+        sensor.AddObservation(opponentGoal.position);
+
+        // Relative position to the ball
+        Vector3 relativePosition = ball.position - transform.position;
+        sensor.AddObservation(relativePosition);
     }
 
     public override void OnEpisodeBegin()
     {
         m_BallTouch = m_ResetParams.GetWithDefault("ball_touch", 0);
     }
-
 }
