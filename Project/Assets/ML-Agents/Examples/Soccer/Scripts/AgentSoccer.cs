@@ -3,6 +3,7 @@ using Unity.MLAgents;
 using Unity.MLAgents.Actuators;
 using Unity.MLAgents.Policies;
 using Unity.MLAgents.Sensors;
+using System.Collections.Generic;
 
 public enum Team
 {
@@ -42,6 +43,8 @@ public class AgentSoccer : Agent
     public Transform ball;
     public Transform ownGoal;
     public Transform opponentGoal;
+
+    private List<AgentSoccer> nearbyAgents;
 
     public override void Initialize()
     {
@@ -87,20 +90,49 @@ public class AgentSoccer : Agent
         agentRb = GetComponent<Rigidbody>();
         agentRb.maxAngularVelocity = 500;
 
+        base.Initialize();
+        nearbyAgents = new List<AgentSoccer>();
+
+        // Add a Sphere Collider for "hearing range"
+        SphereCollider hearingCollider = gameObject.AddComponent<SphereCollider>();
+        hearingCollider.isTrigger = true;
+        hearingCollider.radius = 6f; // Adjust radius based on how far agents should "hear"
+
         m_ResetParams = Academy.Instance.EnvironmentParameters;
+    }
+    private void OnTriggerEnter(Collider other)
+    {
+        var agent = other.GetComponent<AgentSoccer>();
+        if (agent != null && agent != this)
+        {
+            nearbyAgents.Add(agent);
+        }
+    }
+
+    // Trigger detection for agents exiting "hearing range"
+    private void OnTriggerExit(Collider other)
+    {
+        var agent = other.GetComponent<AgentSoccer>();
+        if (agent != null && agent != this)
+        {
+            nearbyAgents.Remove(agent);
+        }
     }
 
     public void MoveAgent(ActionSegment<int> act)
     {
         var dirToGo = Vector3.zero;
         var rotateDir = Vector3.zero;
+        var headRotateDir = Vector3.zero; // New head rotation direction
 
         m_KickPower = 0f;
 
         var forwardAxis = act[0];
         var rightAxis = act[1];
         var rotateAxis = act[2];
+        var headRotateAxis = act[3]; // New action for head rotation
 
+        // Moving forward and backward
         switch (forwardAxis)
         {
             case 1:
@@ -112,6 +144,7 @@ public class AgentSoccer : Agent
                 break;
         }
 
+        // Moving right and left
         switch (rightAxis)
         {
             case 1:
@@ -122,6 +155,7 @@ public class AgentSoccer : Agent
                 break;
         }
 
+        // Body rotation (left and right)
         switch (rotateAxis)
         {
             case 1:
@@ -132,9 +166,64 @@ public class AgentSoccer : Agent
                 break;
         }
 
+        // Head rotation (independent of movement direction)
+        switch (headRotateAxis)
+        {
+            case 1:
+                headRotateDir = Vector3.up * -1f;
+                break;
+            case 2:
+                headRotateDir = Vector3.up * 1f;
+                break;
+        }
+
+        // Apply body and head rotations
         transform.Rotate(rotateDir, Time.deltaTime * 100f);
-        agentRb.AddForce(dirToGo * m_SoccerSettings.agentRunSpeed,
-            ForceMode.VelocityChange);
+        transform.Rotate(headRotateDir, Time.deltaTime * 50f, Space.Self); // Slower rotation for the head
+
+        // Apply movement
+        agentRb.AddForce(dirToGo * m_SoccerSettings.agentRunSpeed, ForceMode.VelocityChange);
+    }
+
+    public override void Heuristic(in ActionBuffers actionsOut)
+    {
+        var discreteActionsOut = actionsOut.DiscreteActions;
+        // Forward and backward
+        if (Input.GetKey(KeyCode.W))
+        {
+            discreteActionsOut[0] = 1;
+        }
+        if (Input.GetKey(KeyCode.S))
+        {
+            discreteActionsOut[0] = 2;
+        }
+        // Rotate body
+        if (Input.GetKey(KeyCode.A))
+        {
+            discreteActionsOut[2] = 1;
+        }
+        if (Input.GetKey(KeyCode.D))
+        {
+            discreteActionsOut[2] = 2;
+        }
+        // Move right and left
+        if (Input.GetKey(KeyCode.E))
+        {
+            discreteActionsOut[1] = 1;
+        }
+        if (Input.GetKey(KeyCode.Q))
+        {
+            discreteActionsOut[1] = 2;
+        }
+        // Rotate head independently
+        if (Input.GetKey(KeyCode.LeftArrow))
+        {
+            discreteActionsOut[3] = 1;
+        }
+        if (Input.GetKey(KeyCode.RightArrow))
+        {
+            discreteActionsOut[3] = 2;
+        }
     }
 
     public override void OnActionReceived(ActionBuffers actionBuffers)
@@ -165,38 +254,7 @@ public class AgentSoccer : Agent
     }
 
 
-    public override void Heuristic(in ActionBuffers actionsOut)
-    {
-        var discreteActionsOut = actionsOut.DiscreteActions;
-        //forward
-        if (Input.GetKey(KeyCode.W))
-        {
-            discreteActionsOut[0] = 1;
-        }
-        if (Input.GetKey(KeyCode.S))
-        {
-            discreteActionsOut[0] = 2;
-        }
-        //rotate
-        if (Input.GetKey(KeyCode.A))
-        {
-            discreteActionsOut[2] = 1;
-        }
-        if (Input.GetKey(KeyCode.D))
-        {
-            discreteActionsOut[2] = 2;
-        }
-        //right
-        if (Input.GetKey(KeyCode.E))
-        {
-            discreteActionsOut[1] = 1;
-        }
-        if (Input.GetKey(KeyCode.Q))
-        {
-            discreteActionsOut[1] = 2;
-        }
-    }
-
+   
     void OnCollisionEnter(Collision c)
     {
         var force = k_Power * m_KickPower;
@@ -213,12 +271,13 @@ public class AgentSoccer : Agent
         }
         if (c.gameObject.CompareTag("wall"))
         {
-            AddReward(-0.005f); 
+            AddReward(-0.005f);
         }
     }
 
     public override void CollectObservations(VectorSensor sensor)
     {
+      
         // Agent's velocity
         sensor.AddObservation(agentRb.velocity);
 
@@ -233,6 +292,27 @@ public class AgentSoccer : Agent
         // Relative position to the ball
         Vector3 relativePosition = ball.position - transform.position;
         sensor.AddObservation(relativePosition);
+
+        int maxNearbyAgents = 3; // Maximum number of agents to consider
+        // Add observations for nearby agents
+        for (int i = 0; i < maxNearbyAgents; i++)
+        {
+            if (i < nearbyAgents.Count)
+            {
+                AgentSoccer agent = nearbyAgents[i];
+                Vector3 relativePositionToAgent = agent.transform.position - transform.position;
+                sensor.AddObservation(relativePositionToAgent.normalized); // Relative direction
+                sensor.AddObservation(relativePositionToAgent.magnitude); // Distance
+                sensor.AddObservation(agent.agentRb.velocity); // Velocity
+            }
+            else
+            {
+                // Pad with zeroes if fewer agents are in hearing range
+                sensor.AddObservation(Vector3.zero); // Placeholder for direction
+                sensor.AddObservation(0f); // Placeholder for distance
+                sensor.AddObservation(Vector3.zero); // Placeholder for velocity
+            }
+        }
     }
 
     public override void OnEpisodeBegin()
