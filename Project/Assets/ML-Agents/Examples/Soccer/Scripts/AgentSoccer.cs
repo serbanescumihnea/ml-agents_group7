@@ -277,6 +277,9 @@ public class AgentSoccer : Agent
 
     public override void CollectObservations(VectorSensor sensor)
     {
+
+        // Use the Ray Perception Sensor to collect observations
+        
       
         // Agent's velocity
         sensor.AddObservation(agentRb.velocity);
