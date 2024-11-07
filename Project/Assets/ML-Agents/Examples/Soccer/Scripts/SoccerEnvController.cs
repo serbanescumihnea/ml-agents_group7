@@ -30,6 +30,10 @@ public class SoccerEnvController : MonoBehaviour
     /// <summary>
     /// We will be changing the ground material based on success/failue
     /// </summary>
+    ///
+    private float currentBallSize = 0.05f; // Starting size
+    private float minBallSize = 0.0001f;      // Minimum size
+    private float sizeDecreaseAmount = 0.0005f; // Amount to decrease each episode
 
     public GameObject ball;
     [HideInInspector]
@@ -118,6 +122,15 @@ public class SoccerEnvController : MonoBehaviour
     public void ResetScene()
     {
         m_ResetTimer = 0;
+
+        currentBallSize -= sizeDecreaseAmount;
+        if (currentBallSize < minBallSize)
+        {
+            currentBallSize = minBallSize;
+        }
+
+        // Update the ball's scale
+      //  ball.transform.localScale = Vector3.one * currentBallSize;
 
         //Reset Agents
         foreach (var item in AgentsList)

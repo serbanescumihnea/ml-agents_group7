@@ -40,7 +40,12 @@ public class AgentSoccer : Agent
 
     EnvironmentParameters m_ResetParams;
 
-    public Transform ball;
+    public GameObject ball;
+    public float currentSize = 3f;
+
+    public Transform ballTransform;
+
+
     public Transform ownGoal;
     public Transform opponentGoal;
 
@@ -131,6 +136,19 @@ public class AgentSoccer : Agent
         var rightAxis = act[1];
         var rotateAxis = act[2];
         var headRotateAxis = act[3]; // New action for head rotation
+        var kickAxis = act[4];
+
+        switch(kickAxis)
+        {
+            case 1:
+                m_KickPower = 1.5f;
+                Debug.Log("Kick");
+                break;
+            case 2:
+                m_KickPower = 2f;
+                Debug.Log("Hard Kick");
+                break;
+        }
 
         // Moving forward and backward
         switch (forwardAxis)
@@ -224,6 +242,15 @@ public class AgentSoccer : Agent
         {
             discreteActionsOut[3] = 2;
         }
+
+        if(Input.GetKey(KeyCode.LeftShift))
+        {
+            discreteActionsOut[4] = 1;
+        }
+        if(Input.GetKey(KeyCode.Space))
+        {
+            discreteActionsOut[4] = 2;
+        }
     }
 
     public override void OnActionReceived(ActionBuffers actionBuffers)
@@ -241,17 +268,10 @@ public class AgentSoccer : Agent
 
         MoveAgent(actionBuffers.DiscreteActions);
 
-        // Custom rewards
-        AddCustomRewards();
+        
     }
 
-    private void AddCustomRewards()
-    {
 
-        // Reward for moving the ball towards the opponent's goal
-        float distanceToOpponentGoal = Vector3.Distance(ball.localPosition, opponentGoal.localPosition);
-        AddReward(-0.002f * distanceToOpponentGoal);
-    }
 
 
    
@@ -269,29 +289,12 @@ public class AgentSoccer : Agent
             dir = dir.normalized;
             c.gameObject.GetComponent<Rigidbody>().AddForce(dir * force);
         }
-        if (c.gameObject.CompareTag("wall"))
-        {
-            AddReward(-0.005f);
-        }
+       
     }
 
     public override void CollectObservations(VectorSensor sensor)
     {
       
-        // Agent's velocity
-        sensor.AddObservation(agentRb.velocity);
-
-        // Ball's position and velocity
-        sensor.AddObservation(ball.position);
-        sensor.AddObservation(ball.GetComponent<Rigidbody>().velocity);
-
-        // Positions of own and opponent goals
-        sensor.AddObservation(ownGoal.position);
-        sensor.AddObservation(opponentGoal.position);
-
-        // Relative position to the ball
-        Vector3 relativePosition = ball.position - transform.position;
-        sensor.AddObservation(relativePosition);
 
         int maxNearbyAgents = 3; // Maximum number of agents to consider
         // Add observations for nearby agents
@@ -317,6 +320,8 @@ public class AgentSoccer : Agent
 
     public override void OnEpisodeBegin()
     {
-        m_BallTouch = m_ResetParams.GetWithDefault("ball_touch", 0);
+        m_BallTouch = m_ResetParams.GetWithDefault("ball_touch", 1.0f); // Set default to 1.0f
+
+
     }
 }
