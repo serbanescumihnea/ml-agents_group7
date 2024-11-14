@@ -636,11 +636,7 @@ PrefabInstance:
       propertyPath: m_BrainParameters.m_ActionSpec.BranchSizes.Array.data[3]
       value: 3
       objectReference: {fileID: 0}
-    m_RemovedComponents:
-    - {fileID: 114516244030127556, guid: 54f3340298537426e96a6cc530e2d5d8, type: 3}
-    - {fileID: 114320493772006642, guid: 54f3340298537426e96a6cc530e2d5d8, type: 3}
-    - {fileID: 2562571719799803906, guid: 54f3340298537426e96a6cc530e2d5d8, type: 3}
-    - {fileID: 1023485123796557062, guid: 54f3340298537426e96a6cc530e2d5d8, type: 3}
+    m_RemovedComponents: []
     m_RemovedGameObjects:
     - {fileID: 1897170901855235213, guid: 54f3340298537426e96a6cc530e2d5d8, type: 3}
     - {fileID: 9136065168043485173, guid: 54f3340298537426e96a6cc530e2d5d8, type: 3}
