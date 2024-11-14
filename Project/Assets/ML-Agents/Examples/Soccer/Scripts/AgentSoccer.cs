@@ -51,6 +51,15 @@ public class AgentSoccer : Agent
 
     private List<AgentSoccer> nearbyAgents;
 
+    private int memorySize = 5;
+
+    // Buffer to store past raycast observations
+    private Queue<float[]> raycastObservationsBuffer;
+
+    // Number of rays and observations per ray
+    private int raysPerObservation = 5; // Adjust based on your raycast setup
+    private int observationsPerRay = 2;
+
     public override void Initialize()
     {
         SoccerEnvController envController = GetComponentInParent<SoccerEnvController>();
@@ -98,6 +107,8 @@ public class AgentSoccer : Agent
         base.Initialize();
         nearbyAgents = new List<AgentSoccer>();
 
+        raycastObservationsBuffer = new Queue<float[]>(memorySize);
+
         // Add a Sphere Collider for "hearing range"
         SphereCollider hearingCollider = gameObject.AddComponent<SphereCollider>();
         hearingCollider.isTrigger = true;
@@ -123,7 +134,70 @@ public class AgentSoccer : Agent
             nearbyAgents.Remove(agent);
         }
     }
+    private float[] GetRaycastObservations()
+    {
+        List<float> observations = new List<float>();
 
+        // Define raycast parameters
+        int numRays = raysPerObservation;
+        float rayLength = 20; // Adjust as needed
+        float angleRange = 135; // Total angle range for rays
+        float angleIncrement = angleRange / (numRays - 1);
+
+        // Start angle
+        float startAngle = -angleRange / 2;
+
+        for (int i = 0; i < numRays; i++)
+        {
+            float angle = startAngle + i * angleIncrement;
+            Quaternion rotation = Quaternion.Euler(0, angle, 0);
+            Vector3 direction = rotation * transform.forward;
+
+            RaycastHit hit;
+            if (Physics.Raycast(transform.position, direction, out hit, rayLength))
+            {
+                // Normalize distance
+                float normalizedDistance = hit.distance / rayLength;
+
+                // Encode hit tag as a number
+                float tagEncoding = EncodeTag(hit.collider.tag);
+
+                observations.Add(normalizedDistance);
+                observations.Add(tagEncoding);
+            }
+            else
+            {
+                // No hit
+                observations.Add(1f); // Max normalized distance
+                observations.Add(0f); // No tag
+            }
+
+            // Optional: Visualize rays in the editor
+            Debug.DrawRay(transform.position, direction * rayLength, Color.red, 0.01f, false);
+        }
+        // Ensure the observations array matches raysPerObservation * observationsPerRay
+        if (observations.Count != raysPerObservation * observationsPerRay)
+        {
+            Debug.LogWarning("Mismatch in raycast observations count.");
+        }
+        return observations.ToArray();
+    }
+
+    private float EncodeTag(string tag)
+    {
+        switch (tag)
+        {
+            case "ball":
+                return 1f;
+            case "agent":
+                return 2f;
+            case "wall":
+                return 3f;
+            // Add other tags as needed
+            default:
+                return 0f;
+        }
+    }
     public void MoveAgent(ActionSegment<int> act)
     {
         var dirToGo = Vector3.zero;
@@ -294,7 +368,24 @@ public class AgentSoccer : Agent
 
     public override void CollectObservations(VectorSensor sensor)
     {
-      
+        // Get current raycast observations
+        float[] currentRaycastObservations = GetRaycastObservations();
+
+        // Add current observations to the buffer
+        raycastObservationsBuffer.Enqueue(currentRaycastObservations);
+
+        // Ensure the buffer does not exceed the memory size
+        if (raycastObservationsBuffer.Count > memorySize)
+        {
+            raycastObservationsBuffer.Dequeue();
+        }
+
+        // Collect observations from the buffer
+        foreach (var observation in raycastObservationsBuffer)
+        {
+            sensor.AddObservation(observation);
+        }
+
 
         int maxNearbyAgents = 3; // Maximum number of agents to consider
         // Add observations for nearby agents
