@@ -19,7 +19,8 @@ ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
 #checkout ml-agents for SHA
 RUN mkdir /ml-agents
 WORKDIR /ml-agents
-ARG SHA
+#inspecific sha
+ARG SHA=master
 RUN git init
 RUN git remote add origin https://github.com/Unity-Technologies/ml-agents.git
 RUN git fetch --depth 1 origin $SHA
