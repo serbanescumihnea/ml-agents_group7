@@ -1,0 +1,42 @@
+{
+    "ball_touch": {
+        "lesson_num": 0
+    },
+    "SoccerTwos": {
+        "checkpoints": [
+            {
+                "steps": 24996,
+                "file_path": "results\\PPOTrainRun\\SoccerTwos\\SoccerTwos-24996.onnx",
+                "reward": 0.0,
+                "creation_time": 1732788759.840496,
+                "auxillary_file_paths": [
+                    "results\\PPOTrainRun\\SoccerTwos\\SoccerTwos-24996.pt"
+                ]
+            },
+            {
+                "steps": 31364,
+                "file_path": "results\\PPOTrainRun\\SoccerTwos\\SoccerTwos-31364.onnx",
+                "reward": null,
+                "creation_time": 1732788765.5162227,
+                "auxillary_file_paths": [
+                    "results\\PPOTrainRun\\SoccerTwos\\SoccerTwos-31364.pt"
+                ]
+            }
+        ],
+        "elo": 1195.2157946440173,
+        "final_checkpoint": {
+            "steps": 31364,
+            "file_path": "results\\PPOTrainRun\\SoccerTwos.onnx",
+            "reward": null,
+            "creation_time": 1732788765.5162227,
+            "auxillary_file_paths": [
+                "results\\PPOTrainRun\\SoccerTwos\\SoccerTwos-31364.pt"
+            ]
+        }
+    },
+    "metadata": {
+        "stats_format_version": "0.3.0",
+        "mlagents_version": "1.1.0",
+        "torch_version": "2.5.1+cu124"
+    }
+}

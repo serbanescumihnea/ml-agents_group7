@@ -8,6 +8,8 @@ public class SoccerBallController : MonoBehaviour
     public string purpleGoalTag; //will be used to check if collided with purple goal
     public string blueGoalTag; //will be used to check if collided with blue goal
 
+    public AgentSoccer lastTouchedBy;
+
     void Start()
     {
         envController = area.GetComponent<SoccerEnvController>();
@@ -15,6 +17,11 @@ public class SoccerBallController : MonoBehaviour
 
     void OnCollisionEnter(Collision col)
     {
+        AgentSoccer agent = col.gameObject.GetComponent<AgentSoccer>();
+        if (agent != null)
+        {
+            lastTouchedBy = agent;
+        }
         if (col.gameObject.CompareTag(purpleGoalTag)) //ball touched purple goal
         {
             envController.GoalTouched(Team.Blue);
@@ -24,4 +31,6 @@ public class SoccerBallController : MonoBehaviour
             envController.GoalTouched(Team.Purple);
         }
     }
+
+
 }
