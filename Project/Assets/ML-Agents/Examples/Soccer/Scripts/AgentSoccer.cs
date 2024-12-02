@@ -53,12 +53,12 @@ public class AgentSoccer : Agent
     public Transform headTransform;
 
     // Number of rays and observations per ray
-    private int raysPerObservation = 5; // Adjust based on your raycast setup
-    private int observationsPerRay = 8; // Corrected to match actual observations per ray
+    private int raysPerObservation = 5;
+
 
     private int maxNearbyAgents = 3; // Maximum number of agents to consider
 
-    private float prevDistanceToBall;
+ 
 
     // Constants for normalization
     private const float maxAgentDistance = 25f;
@@ -114,19 +114,16 @@ public class AgentSoccer : Agent
         m_SoccerSettings = FindObjectOfType<SoccerSettings>();
         agentRb = GetComponent<Rigidbody>();
         agentRb.maxAngularVelocity = 500;
-
-        base.Initialize();
         nearbyAgents = new List<AgentSoccer>();
 
-        // Add a Sphere Collider for "hearing range"
+      
         SphereCollider hearingCollider = gameObject.AddComponent<SphereCollider>();
         hearingCollider.isTrigger = true;
         hearingCollider.radius = 6f;
 
         m_ResetParams = Academy.Instance.EnvironmentParameters;
 
-        // Initialize previous distance to ball
-        prevDistanceToBall = Vector3.Distance(transform.position, ballTransform.position);
+       
     }
 
     private void OnTriggerEnter(Collider other)
@@ -159,8 +156,8 @@ public class AgentSoccer : Agent
 
         // Define raycast parameters
         int numRays = raysPerObservation;
-        float rayLength = 25f; // Adjust as needed
-        float angleRange = 135f; // Total angle range for rays
+        float rayLength = 25f;
+        float angleRange = 135f;
         float angleIncrement = angleRange / (numRays - 1);
 
         // Start angle
@@ -179,7 +176,7 @@ public class AgentSoccer : Agent
                 float normalizedDistance = hit.distance / rayLength;
 
                 // Encode hit tag as a number
-                float tagEncoding = EncodeTag(hit.collider.tag) / 6f; // Normalize tag encoding between 0 and 1
+                float tagEncoding = EncodeTag(hit.collider.tag);
 
                 observations.Add(normalizedDistance);
                 observations.Add(tagEncoding);
@@ -187,22 +184,24 @@ public class AgentSoccer : Agent
                 // Add normalized position of the observed object
                 Vector3 positionDifference = hit.collider.transform.position - transform.position;
                 Vector3 normalizedPosition = positionDifference / maxRaycastDistance;
+
                 observations.Add(Mathf.Clamp(normalizedPosition.x, -1f, 1f));
                 observations.Add(Mathf.Clamp(normalizedPosition.y, -1f, 1f));
                 observations.Add(Mathf.Clamp(normalizedPosition.z, -1f, 1f));
 
-                // Add normalized velocity of the observed object (if it has a Rigidbody)
+                // Add normalized velocity of the observed object 
                 Rigidbody hitRigidbody = hit.collider.GetComponent<Rigidbody>();
                 if (hitRigidbody != null)
                 {
                     Vector3 normalizedVelocity = hitRigidbody.velocity / maxObjectVelocity;
+
                     observations.Add(Mathf.Clamp(normalizedVelocity.x, -1f, 1f));
                     observations.Add(Mathf.Clamp(normalizedVelocity.y, -1f, 1f));
                     observations.Add(Mathf.Clamp(normalizedVelocity.z, -1f, 1f));
                 }
                 else
                 {
-                    // Add zero velocity if no Rigidbody is present
+                    // Add zero velocity if no rgb is present
                     observations.Add(0f);
                     observations.Add(0f);
                     observations.Add(0f);
@@ -224,11 +223,7 @@ public class AgentSoccer : Agent
             }
         }
 
-        // Ensure the observations array matches raysPerObservation * observationsPerRay
-        if (observations.Count != raysPerObservation * observationsPerRay)
-        {
-            Debug.LogWarning("Mismatch in raycast observations count.");
-        }
+      
 
         return observations.ToArray();
     }
@@ -266,29 +261,17 @@ public class AgentSoccer : Agent
         var rightAxis = act[1];
         var rotateAxis = act[2];
         var headRotateAxis = act[3];
-        var kickAxis = act[4];
 
-        switch (kickAxis)
-        {
-            case 1:
-                m_KickPower = 1.5f;
-                break;
-            case 2:
-                m_KickPower = 2f;
-                break;
-        }
-
-        // Moving forward and backward
         switch (forwardAxis)
         {
             case 1:
-                dirToGo += transform.forward * m_ForwardSpeed;
+                dirToGo = transform.forward * m_ForwardSpeed;
+                m_KickPower = 1f;
                 break;
             case 2:
-                dirToGo += transform.forward * -m_ForwardSpeed;
+                dirToGo = transform.forward * -m_ForwardSpeed;
                 break;
         }
-
         // Moving right and left
         switch (rightAxis)
         {
@@ -325,7 +308,7 @@ public class AgentSoccer : Agent
         transform.Rotate(rotateDir, Time.deltaTime * 100f);
 
         // Apply head rotation to headTransform
-        headTransform.Rotate(headRotateDir, Time.deltaTime * 50f, Space.Self);
+        headTransform.Rotate(headRotateDir, Time.deltaTime * 100f, Space.Self);
 
         // Apply movement
         agentRb.AddForce(dirToGo * m_SoccerSettings.agentRunSpeed, ForceMode.VelocityChange);
@@ -370,20 +353,15 @@ public class AgentSoccer : Agent
         {
             discreteActionsOut[3] = 2;
         }
-
-        if (Input.GetKey(KeyCode.LeftShift))
-        {
-            discreteActionsOut[4] = 1;
-        }
-        if (Input.GetKey(KeyCode.Space))
-        {
-            discreteActionsOut[4] = 2;
-        }
     }
 
     public override void OnActionReceived(ActionBuffers actionBuffers)
     {
         MoveAgent(actionBuffers.DiscreteActions);
+
+      
+
+       
     }
 
     void OnCollisionEnter(Collision c)
@@ -398,24 +376,67 @@ public class AgentSoccer : Agent
             var dir = c.contacts[0].point - transform.position;
             dir = dir.normalized;
             c.gameObject.GetComponent<Rigidbody>().AddForce(dir * force);
+            AddReward(0.005f);
+          
         }
     }
 
     public override void CollectObservations(VectorSensor sensor)
     {
+       
+
+        // Collect current observations
         List<float> currentObservations = new List<float>();
 
-        // Get normalized raycast observations
+        // Agent's own position and velocity
+        Vector3 normalizedPosition = transform.localPosition / maxAgentDistance;
+        Vector3 normalizedVelocity = agentRb.velocity / maxAgentVelocity;
+
+        currentObservations.Add(normalizedPosition.x);
+        currentObservations.Add(normalizedPosition.y);
+        currentObservations.Add(normalizedPosition.z);
+        currentObservations.Add(normalizedVelocity.x);
+        currentObservations.Add(normalizedVelocity.y);
+        currentObservations.Add(normalizedVelocity.z);
+
+        // Ball's position and velocity relative to agent
+        Vector3 relativeBallPosition = ballTransform.localPosition - transform.localPosition;
+        Vector3 normalizedBallPosition = relativeBallPosition / maxAgentDistance;
+        currentObservations.Add(normalizedBallPosition.x);
+        currentObservations.Add(normalizedBallPosition.y);
+        currentObservations.Add(normalizedBallPosition.z);
+
+        Rigidbody ballRb = ball.GetComponent<Rigidbody>();
+        Vector3 normalizedBallVelocity = ballRb.velocity / maxObjectVelocity;
+        currentObservations.Add(normalizedBallVelocity.x);
+        currentObservations.Add(normalizedBallVelocity.y);
+        currentObservations.Add(normalizedBallVelocity.z);
+
+        // Own goal position relative to agent
+        Vector3 relativeOwnGoalPosition = ownGoal.localPosition - transform.localPosition;
+        Vector3 normalizedOwnGoalPosition = relativeOwnGoalPosition / maxAgentDistance;
+        currentObservations.Add(normalizedOwnGoalPosition.x);
+        currentObservations.Add(normalizedOwnGoalPosition.y);
+        currentObservations.Add(normalizedOwnGoalPosition.z);
+
+        // Opponent goal position relative to agent
+        Vector3 relativeOpponentGoalPosition = opponentGoal.localPosition - transform.localPosition;
+        Vector3 normalizedOpponentGoalPosition = relativeOpponentGoalPosition / maxAgentDistance;
+        currentObservations.Add(normalizedOpponentGoalPosition.x);
+        currentObservations.Add(normalizedOpponentGoalPosition.y);
+        currentObservations.Add(normalizedOpponentGoalPosition.z);
+
+        // Include the existing raycast observations
         float[] raycastObservations = GetRaycastObservations();
         currentObservations.AddRange(raycastObservations);
 
-        // Normalize observations for nearby agents
+        // Include nearby agents observations
         for (int i = 0; i < maxNearbyAgents; i++)
         {
             if (i < nearbyAgents.Count)
             {
                 AgentSoccer agent = nearbyAgents[i];
-                Vector3 relativePositionToAgent = agent.transform.position - transform.position;
+                Vector3 relativePositionToAgent = agent.transform.localPosition - transform.localPosition;
 
                 // Normalize distance
                 float normalizedDistance = relativePositionToAgent.magnitude / maxAgentDistance;
@@ -425,10 +446,10 @@ public class AgentSoccer : Agent
                 Vector3 normalizedDirection = relativePositionToAgent.normalized;
 
                 // Normalize agent velocity
-                Vector3 normalizedVelocity = agent.agentRb.velocity / maxAgentVelocity;
-                normalizedVelocity.x = Mathf.Clamp(normalizedVelocity.x, -1f, 1f);
-                normalizedVelocity.y = Mathf.Clamp(normalizedVelocity.y, -1f, 1f);
-                normalizedVelocity.z = Mathf.Clamp(normalizedVelocity.z, -1f, 1f);
+                Vector3 normalizedAgentVelocity = agent.agentRb.velocity / maxAgentVelocity;
+                normalizedAgentVelocity.x = Mathf.Clamp(normalizedAgentVelocity.x, -1f, 1f);
+                normalizedAgentVelocity.y = Mathf.Clamp(normalizedAgentVelocity.y, -1f, 1f);
+                normalizedAgentVelocity.z = Mathf.Clamp(normalizedAgentVelocity.z, -1f, 1f);
 
                 currentObservations.AddRange(new float[]
                 {
@@ -436,9 +457,9 @@ public class AgentSoccer : Agent
                     normalizedDirection.y,
                     normalizedDirection.z,
                     normalizedDistance,
-                    normalizedVelocity.x,
-                    normalizedVelocity.y,
-                    normalizedVelocity.z
+                    normalizedAgentVelocity.x,
+                    normalizedAgentVelocity.y,
+                    normalizedAgentVelocity.z
                 });
             }
             else
@@ -453,9 +474,9 @@ public class AgentSoccer : Agent
             }
         }
 
+        // Maintain observation stack size
         observationStack.Enqueue(currentObservations.ToArray());
 
-        // Maintain observation stack size
         if (observationStack.Count > numObservationStacks)
         {
             observationStack.Dequeue();
@@ -475,8 +496,18 @@ public class AgentSoccer : Agent
         agentRb.angularVelocity = Vector3.zero;
         transform.position = initialPos;
         transform.rotation = Quaternion.Euler(0, 0, 0);
+        headTransform.rotation = Quaternion.Euler(0, 0, 0);
+       
+        observationStack.Clear();
 
-        // Reset the previous distance to the ball
-        prevDistanceToBall = Vector3.Distance(transform.position, ballTransform.position);
+        for (int i = 0; i < numObservationStacks; i++)
+        {
+            observationStack.Enqueue(new float[79]);
+        }
+
+       
+    
     }
+
+  
 }
