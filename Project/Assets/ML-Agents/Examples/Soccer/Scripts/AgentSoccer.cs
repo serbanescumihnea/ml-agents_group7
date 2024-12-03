@@ -47,30 +47,28 @@ public class AgentSoccer : Agent
 
     private List<AgentSoccer> nearbyAgents;
 
-    private int numObservationStacks = 3;
-    private Queue<float[]> observationStack;
 
     public Transform headTransform;
 
-    // Number of rays and observations per ray
-    private int raysPerObservation = 5;
+
+    MemorySensor memorySensor;
 
 
-    private int maxNearbyAgents = 3; // Maximum number of agents to consider
+
 
  
 
     // Constants for normalization
-    private const float maxAgentDistance = 25f;
-    private const float maxAgentVelocity = 10f;
-    private const float maxObjectVelocity = 15f;
-    private const float maxRaycastDistance = 25f;
+    private const float maxAgentDistance = 15f;
+
+
+    int maxNearbyAgents = 3;
 
     public override void Initialize()
     {
         SoccerEnvController envController = GetComponentInParent<SoccerEnvController>();
 
-        observationStack = new Queue<float[]>(numObservationStacks);
+ 
 
         if (envController != null)
         {
@@ -116,6 +114,8 @@ public class AgentSoccer : Agent
         agentRb.maxAngularVelocity = 500;
         nearbyAgents = new List<AgentSoccer>();
 
+
+        memorySensor = this.GetComponent<MemorySensorComponent>().createSensor() ;
       
         SphereCollider hearingCollider = gameObject.AddComponent<SphereCollider>();
         hearingCollider.isTrigger = true;
@@ -141,7 +141,7 @@ public class AgentSoccer : Agent
     private void OnTriggerExit(Collider other)
     {
         var agent = other.GetComponent<AgentSoccer>();
-        if (agent != null && agent != this)
+        if (agent != null && agent.name != this.name)
         {
             if (nearbyAgents.Contains(agent))
             {
@@ -150,105 +150,7 @@ public class AgentSoccer : Agent
         }
     }
 
-    private float[] GetRaycastObservations()
-    {
-        List<float> observations = new List<float>();
-
-        // Define raycast parameters
-        int numRays = raysPerObservation;
-        float rayLength = 25f;
-        float angleRange = 135f;
-        float angleIncrement = angleRange / (numRays - 1);
-
-        // Start angle
-        float startAngle = -angleRange / 2;
-
-        for (int i = 0; i < numRays; i++)
-        {
-            float angle = startAngle + i * angleIncrement;
-            Quaternion rotation = Quaternion.Euler(0, angle, 0);
-            Vector3 direction = rotation * headTransform.forward;
-
-            RaycastHit hit;
-            if (Physics.Raycast(transform.position, direction, out hit, rayLength))
-            {
-                // Normalize distance
-                float normalizedDistance = hit.distance / rayLength;
-
-                // Encode hit tag as a number
-                float tagEncoding = EncodeTag(hit.collider.tag);
-
-                observations.Add(normalizedDistance);
-                observations.Add(tagEncoding);
-
-                // Add normalized position of the observed object
-                Vector3 positionDifference = hit.collider.transform.position - transform.position;
-                Vector3 normalizedPosition = positionDifference / maxRaycastDistance;
-
-                observations.Add(Mathf.Clamp(normalizedPosition.x, -1f, 1f));
-                observations.Add(Mathf.Clamp(normalizedPosition.y, -1f, 1f));
-                observations.Add(Mathf.Clamp(normalizedPosition.z, -1f, 1f));
-
-                // Add normalized velocity of the observed object 
-                Rigidbody hitRigidbody = hit.collider.GetComponent<Rigidbody>();
-                if (hitRigidbody != null)
-                {
-                    Vector3 normalizedVelocity = hitRigidbody.velocity / maxObjectVelocity;
-
-                    observations.Add(Mathf.Clamp(normalizedVelocity.x, -1f, 1f));
-                    observations.Add(Mathf.Clamp(normalizedVelocity.y, -1f, 1f));
-                    observations.Add(Mathf.Clamp(normalizedVelocity.z, -1f, 1f));
-                }
-                else
-                {
-                    // Add zero velocity if no rgb is present
-                    observations.Add(0f);
-                    observations.Add(0f);
-                    observations.Add(0f);
-                }
-            }
-            else
-            {
-                // No hit
-                observations.Add(1f); // Max normalized distance
-                observations.Add(0f); // No tag
-
-                // Add zero position and velocity for no hit
-                observations.Add(0f);
-                observations.Add(0f);
-                observations.Add(0f);
-                observations.Add(0f);
-                observations.Add(0f);
-                observations.Add(0f);
-            }
-        }
-
-      
-
-        return observations.ToArray();
-    }
-
-    private float EncodeTag(string tag)
-    {
-        switch (tag)
-        {
-            case "ball":
-                return 1f;
-            case "blueAgent":
-                return 2f;
-            case "purpleAgent":
-                return 3f;
-            case "wall":
-                return 4f;
-            case "blueGoal":
-                return 5f;
-            case "purpleGoal":
-                return 6f;
-            default:
-                return 0f;
-        }
-    }
-
+   
     public void MoveAgent(ActionSegment<int> act)
     {
         var dirToGo = Vector3.zero;
@@ -376,68 +278,28 @@ public class AgentSoccer : Agent
             var dir = c.contacts[0].point - transform.position;
             dir = dir.normalized;
             c.gameObject.GetComponent<Rigidbody>().AddForce(dir * force);
-            AddReward(0.005f);
+            
           
         }
     }
 
     public override void CollectObservations(VectorSensor sensor)
     {
-       
-
-        // Collect current observations
-        List<float> currentObservations = new List<float>();
-
-        // Agent's own position and velocity
-        Vector3 normalizedPosition = transform.localPosition / maxAgentDistance;
-        Vector3 normalizedVelocity = agentRb.velocity / maxAgentVelocity;
-
-        currentObservations.Add(normalizedPosition.x);
-        currentObservations.Add(normalizedPosition.y);
-        currentObservations.Add(normalizedPosition.z);
-        currentObservations.Add(normalizedVelocity.x);
-        currentObservations.Add(normalizedVelocity.y);
-        currentObservations.Add(normalizedVelocity.z);
-
-        // Ball's position and velocity relative to agent
-        Vector3 relativeBallPosition = ballTransform.localPosition - transform.localPosition;
-        Vector3 normalizedBallPosition = relativeBallPosition / maxAgentDistance;
-        currentObservations.Add(normalizedBallPosition.x);
-        currentObservations.Add(normalizedBallPosition.y);
-        currentObservations.Add(normalizedBallPosition.z);
-
-        Rigidbody ballRb = ball.GetComponent<Rigidbody>();
-        Vector3 normalizedBallVelocity = ballRb.velocity / maxObjectVelocity;
-        currentObservations.Add(normalizedBallVelocity.x);
-        currentObservations.Add(normalizedBallVelocity.y);
-        currentObservations.Add(normalizedBallVelocity.z);
-
-        // Own goal position relative to agent
-        Vector3 relativeOwnGoalPosition = ownGoal.localPosition - transform.localPosition;
-        Vector3 normalizedOwnGoalPosition = relativeOwnGoalPosition / maxAgentDistance;
-        currentObservations.Add(normalizedOwnGoalPosition.x);
-        currentObservations.Add(normalizedOwnGoalPosition.y);
-        currentObservations.Add(normalizedOwnGoalPosition.z);
-
-        // Opponent goal position relative to agent
-        Vector3 relativeOpponentGoalPosition = opponentGoal.localPosition - transform.localPosition;
-        Vector3 normalizedOpponentGoalPosition = relativeOpponentGoalPosition / maxAgentDistance;
-        currentObservations.Add(normalizedOpponentGoalPosition.x);
-        currentObservations.Add(normalizedOpponentGoalPosition.y);
-        currentObservations.Add(normalizedOpponentGoalPosition.z);
-
-        // Include the existing raycast observations
-        float[] raycastObservations = GetRaycastObservations();
-        currentObservations.AddRange(raycastObservations);
-
-        // Include nearby agents observations
+        memorySensor.Update();  
+        if (memorySensor != null)
+        {
+            sensor.AddObservation(memorySensor.getObservations());
+         
+        }
+        List<float> currentSoundObservations = new List<float>();
         for (int i = 0; i < maxNearbyAgents; i++)
         {
             if (i < nearbyAgents.Count)
             {
                 AgentSoccer agent = nearbyAgents[i];
                 Vector3 relativePositionToAgent = agent.transform.localPosition - transform.localPosition;
-
+                Vector3 normalizedPosition = relativePositionToAgent / maxAgentDistance;
+              
                 // Normalize distance
                 float normalizedDistance = relativePositionToAgent.magnitude / maxAgentDistance;
                 normalizedDistance = Mathf.Clamp(normalizedDistance, 0f, 1f);
@@ -445,65 +307,46 @@ public class AgentSoccer : Agent
                 // Normalize relative position
                 Vector3 normalizedDirection = relativePositionToAgent.normalized;
 
-                // Normalize agent velocity
-                Vector3 normalizedAgentVelocity = agent.agentRb.velocity / maxAgentVelocity;
-                normalizedAgentVelocity.x = Mathf.Clamp(normalizedAgentVelocity.x, -1f, 1f);
-                normalizedAgentVelocity.y = Mathf.Clamp(normalizedAgentVelocity.y, -1f, 1f);
-                normalizedAgentVelocity.z = Mathf.Clamp(normalizedAgentVelocity.z, -1f, 1f);
 
-                currentObservations.AddRange(new float[]
+                currentSoundObservations.AddRange(new float[]
                 {
                     normalizedDirection.x,
                     normalizedDirection.y,
                     normalizedDirection.z,
                     normalizedDistance,
-                    normalizedAgentVelocity.x,
-                    normalizedAgentVelocity.y,
-                    normalizedAgentVelocity.z
+                    normalizedPosition.x,
+                    normalizedPosition.y,
+                        normalizedPosition.z
+
                 });
             }
             else
             {
                 // Pad with zeroes
-                currentObservations.AddRange(new float[]
+                currentSoundObservations.AddRange(new float[]
                 {
                     0f, 0f, 0f, // Direction
-                    0f,         // Distance
-                    0f, 0f, 0f  // Velocity
+                    0f,
+                    0f, 0f, 0f // Position
                 });
             }
         }
-
-        // Maintain observation stack size
-        observationStack.Enqueue(currentObservations.ToArray());
-
-        if (observationStack.Count > numObservationStacks)
-        {
-            observationStack.Dequeue();
-        }
-
-        // Add observations to the sensor
-        foreach (var observation in observationStack)
-        {
-            sensor.AddObservation(observation);
-        }
+        sensor.AddObservation(currentSoundObservations);
     }
+
+
+
 
     public override void OnEpisodeBegin()
     {
         // Reset the agent's position and velocity
+        memorySensor.Reset();
         agentRb.velocity = Vector3.zero;
         agentRb.angularVelocity = Vector3.zero;
         transform.position = initialPos;
         transform.rotation = Quaternion.Euler(0, 0, 0);
         headTransform.rotation = Quaternion.Euler(0, 0, 0);
-       
-        observationStack.Clear();
-
-        for (int i = 0; i < numObservationStacks; i++)
-        {
-            observationStack.Enqueue(new float[79]);
-        }
+      
 
        
     
