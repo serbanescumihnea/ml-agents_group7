@@ -64,6 +64,10 @@ public class AgentSoccer : Agent
 
     int maxNearbyAgents = 3;
 
+
+    private bool isRequestingPass = false;
+    private bool wantsToPass = false;
+
     public override void Initialize()
     {
         SoccerEnvController envController = GetComponentInParent<SoccerEnvController>();
@@ -163,6 +167,19 @@ public class AgentSoccer : Agent
         var rightAxis = act[1];
         var rotateAxis = act[2];
         var headRotateAxis = act[3];
+        var passAxis = act[4];
+
+        switch (passAxis)
+        {
+            case 1:
+                isRequestingPass = true;
+                break;
+            case 2:
+                wantsToPass = true;
+                break;
+        }
+
+
 
         switch (forwardAxis)
         {
@@ -255,16 +272,56 @@ public class AgentSoccer : Agent
         {
             discreteActionsOut[3] = 2;
         }
+
+        discreteActionsOut[4] = Input.GetKey(KeyCode.LeftShift) ? 1 : 0;
     }
 
     public override void OnActionReceived(ActionBuffers actionBuffers)
     {
         MoveAgent(actionBuffers.DiscreteActions);
 
-      
+        if (wantsToPass)
+        {
+            AttemptPass();
+        }
 
+
+    }
+    private void AttemptPass()
+    {
+
+        float kickDistance = 2.0f; 
+        if (Vector3.Distance(transform.position, ball.transform.position) <= kickDistance)
+        {
+      
+            AgentSoccer agentToPassTo = null;
+            foreach (var agent in nearbyAgents)
+            {
+                if (agent.isRequestingPass)
+                {
+                    agentToPassTo = agent;
+                    break;
+                }
+            }
+
+            if (agentToPassTo != null)
+            {
+                // Decide whether to pass based on team
+                if (agentToPassTo.team == this.team)
+                {
+                    // Pass to teammate
+                    Vector3 passDirection = (agentToPassTo.transform.position - ball.transform.position).normalized;
+                    ballTransform.GetComponent<Rigidbody>().AddForce(passDirection * k_Power);
+
+                    agentToPassTo.AddReward(0.2f);
+                }
+               
+            }
+           
+        }
        
     }
+
 
     void OnCollisionEnter(Collision c)
     {
