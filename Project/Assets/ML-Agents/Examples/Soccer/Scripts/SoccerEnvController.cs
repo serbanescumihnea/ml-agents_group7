@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Drawing.Text;
 using Unity.MLAgents;
 using UnityEngine;
 
@@ -32,6 +33,15 @@ public class SoccerEnvController : MonoBehaviour
     /// </summary>
     ///
 
+    [SerializeField]
+    private GameObject blueGoal;
+    [SerializeField]
+    private GameObject purpleGoal;
+
+    // Resetable rewards
+    private float purpleBallToGoalReward = 0;
+    private float blueBallToGoalReward = 0;
+
 
     public GameObject ball;
     [HideInInspector]
@@ -47,6 +57,11 @@ public class SoccerEnvController : MonoBehaviour
     private SimpleMultiAgentGroup m_BlueAgentGroup;
     private SimpleMultiAgentGroup m_PurpleAgentGroup;
 
+    public int blueTeamPossession = 0;
+    public int purpleTeamPossession = 0;
+
+    private BallController m_BallController;
+
     private int m_ResetTimer;
 
     void Start()
@@ -56,6 +71,9 @@ public class SoccerEnvController : MonoBehaviour
         // Initialize TeamManager
         m_BlueAgentGroup = new SimpleMultiAgentGroup();
         m_PurpleAgentGroup = new SimpleMultiAgentGroup();
+
+       
+        
         ballRb = ball.GetComponent<Rigidbody>();
         m_BallStartingPos = new Vector3(ball.transform.position.x, ball.transform.position.y, ball.transform.position.z);
         foreach (var item in AgentsList)
@@ -78,12 +96,37 @@ public class SoccerEnvController : MonoBehaviour
     void FixedUpdate()
     {
         m_ResetTimer += 1;
+       // addBallDistanceToGoalReward();
         if (m_ResetTimer >= MaxEnvironmentSteps && MaxEnvironmentSteps > 0)
         {
             m_BlueAgentGroup.GroupEpisodeInterrupted();
             m_PurpleAgentGroup.GroupEpisodeInterrupted();
             ResetScene();
         }
+        
+       
+    }
+
+    void addBallDistanceToGoalReward()
+    {
+       Vector3 ballPos = ball.transform.position;
+       Vector3 blueGoalPos = blueGoal.transform.position;
+       Vector3 purpleGoalPos = purpleGoal.transform.position;
+
+        // Out of 32 for both
+        float distanceToBlueGoal = Vector3.Distance(ballPos, blueGoalPos);
+        float distanceToPurpleGoal = Vector3.Distance(ballPos, purpleGoalPos);
+
+        float purpleReward = 1 - distanceToBlueGoal / 32;
+        float blueReward = 1 - distanceToPurpleGoal / 32;
+        purpleBallToGoalReward += purpleReward;
+        blueBallToGoalReward += blueReward;
+
+        float normalizedPurpleRewardForDistance = purpleBallToGoalReward / m_ResetTimer;
+        float normalizedBlueRewardForDistance = blueBallToGoalReward / m_ResetTimer;
+        m_BlueAgentGroup.AddGroupReward(normalizedBlueRewardForDistance);
+        m_PurpleAgentGroup.AddGroupReward(normalizedPurpleRewardForDistance);
+
     }
 
 
@@ -100,16 +143,21 @@ public class SoccerEnvController : MonoBehaviour
 
     public void GoalTouched(Team scoredTeam)
     {
+        
+
+
         if (scoredTeam == Team.Blue)
         {
-            m_BlueAgentGroup.AddGroupReward(1 - (float)m_ResetTimer / MaxEnvironmentSteps);
+            m_BlueAgentGroup.AddGroupReward(1 );
             m_PurpleAgentGroup.AddGroupReward(-1);
         }
         else
         {
-            m_PurpleAgentGroup.AddGroupReward(1 - (float)m_ResetTimer / MaxEnvironmentSteps);
+            m_PurpleAgentGroup.AddGroupReward(1 );
             m_BlueAgentGroup.AddGroupReward(-1);
         }
+       
+
         m_PurpleAgentGroup.EndGroupEpisode();
         m_BlueAgentGroup.EndGroupEpisode();
         ResetScene();
@@ -121,7 +169,11 @@ public class SoccerEnvController : MonoBehaviour
     {
         m_ResetTimer = 0;
 
- 
+        purpleBallToGoalReward = 0;
+        blueBallToGoalReward = 0;
+
+        blueTeamPossession = 0;
+        purpleTeamPossession = 0;
 
         //Reset Agents
         foreach (var item in AgentsList)

@@ -53,8 +53,9 @@ public class AgentSoccer : Agent
 
     MemorySensor memorySensor;
 
-
-
+    public bool visionDecouple = true;
+    public bool useMemory = true;
+    public bool useSoundObservations = true;
 
  
 
@@ -80,6 +81,9 @@ public class AgentSoccer : Agent
         }
 
         m_BehaviorParameters = gameObject.GetComponent<BehaviorParameters>();
+        m_BehaviorParameters.BrainParameters.VectorObservationSize = 0;
+        m_BehaviorParameters.BrainParameters.ActionSpec = new ActionSpec(0, new int[] { 3, 3, 3});
+
         if (m_BehaviorParameters.TeamId == (int)Team.Blue)
         {
             team = Team.Blue;
@@ -115,11 +119,25 @@ public class AgentSoccer : Agent
         nearbyAgents = new List<AgentSoccer>();
 
 
-        memorySensor = this.GetComponent<MemorySensorComponent>().createSensor() ;
+        if (visionDecouple)
+        {
+            m_BehaviorParameters.BrainParameters.ActionSpec = new ActionSpec(0, new int[]{ 3, 3, 3, 3 });
+        }
+
+
+        if (useMemory) {
+            memorySensor = this.GetComponent<MemorySensorComponent>().createSensor();
+            m_BehaviorParameters.BrainParameters.VectorObservationSize += 110; 
+        }
+        if (useSoundObservations)
+        {
+            SphereCollider hearingCollider = gameObject.AddComponent<SphereCollider>();
+            hearingCollider.isTrigger = true;
+            hearingCollider.radius = 6f;
+            m_BehaviorParameters.BrainParameters.VectorObservationSize += 21;
+        }
       
-        SphereCollider hearingCollider = gameObject.AddComponent<SphereCollider>();
-        hearingCollider.isTrigger = true;
-        hearingCollider.radius = 6f;
+       
 
         m_ResetParams = Academy.Instance.EnvironmentParameters;
 
@@ -150,7 +168,16 @@ public class AgentSoccer : Agent
         }
     }
 
-   
+    public void addGoalReward()
+    {
+        AddReward(0.75f);
+    }
+    public void addGoalPunishment()
+    {
+        AddReward(-0.75f);
+    }
+
+
     public void MoveAgent(ActionSegment<int> act)
     {
         var dirToGo = Vector3.zero;
@@ -162,7 +189,6 @@ public class AgentSoccer : Agent
         var forwardAxis = act[0];
         var rightAxis = act[1];
         var rotateAxis = act[2];
-        var headRotateAxis = act[3];
 
         switch (forwardAxis)
         {
@@ -197,20 +223,25 @@ public class AgentSoccer : Agent
         }
 
         // Head rotation (independent of movement direction)
-        switch (headRotateAxis)
-        {
-            case 1:
-                headRotateDir = Vector3.up * -1f;
-                break;
-            case 2:
-                headRotateDir = Vector3.up * 1f;
-                break;
+        if (visionDecouple) { 
+            var headRotateAxis = act[3];
+            switch (headRotateAxis)
+            {
+                case 1:
+                    headRotateDir = Vector3.up * -1f;
+                    break;
+                case 2:
+                    headRotateDir = Vector3.up * 1f;
+                    break;
+            }
+            // Apply head rotation to headTransform
+            headTransform.Rotate(headRotateDir, Time.deltaTime * 100f, Space.Self);
         }
 
         transform.Rotate(rotateDir, Time.deltaTime * 100f);
 
-        // Apply head rotation to headTransform
-        headTransform.Rotate(headRotateDir, Time.deltaTime * 100f, Space.Self);
+        
+       
 
         // Apply movement
         agentRb.AddForce(dirToGo * m_SoccerSettings.agentRunSpeed, ForceMode.VelocityChange);
@@ -247,13 +278,15 @@ public class AgentSoccer : Agent
             discreteActionsOut[1] = 2;
         }
         // Rotate head independently
-        if (Input.GetKey(KeyCode.LeftArrow))
-        {
-            discreteActionsOut[3] = 1;
-        }
-        if (Input.GetKey(KeyCode.RightArrow))
-        {
-            discreteActionsOut[3] = 2;
+        if (visionDecouple) { 
+            if (Input.GetKey(KeyCode.LeftArrow))
+            {
+                discreteActionsOut[3] = 1;
+            }
+            if (Input.GetKey(KeyCode.RightArrow))
+            {
+                discreteActionsOut[3] = 2;
+            }
         }
     }
 
@@ -285,31 +318,37 @@ public class AgentSoccer : Agent
 
     public override void CollectObservations(VectorSensor sensor)
     {
-        memorySensor.Update();  
-        if (memorySensor != null)
+        if (useMemory)
         {
-            sensor.AddObservation(memorySensor.getObservations());
-         
-        }
-        List<float> currentSoundObservations = new List<float>();
-        for (int i = 0; i < maxNearbyAgents; i++)
-        {
-            if (i < nearbyAgents.Count)
+            memorySensor.Update();
+            if (memorySensor != null)
             {
-                AgentSoccer agent = nearbyAgents[i];
-                Vector3 relativePositionToAgent = agent.transform.localPosition - transform.localPosition;
-                Vector3 normalizedPosition = relativePositionToAgent / maxAgentDistance;
-              
-                // Normalize distance
-                float normalizedDistance = relativePositionToAgent.magnitude / maxAgentDistance;
-                normalizedDistance = Mathf.Clamp(normalizedDistance, 0f, 1f);
+                sensor.AddObservation(memorySensor.getObservations());
 
-                // Normalize relative position
-                Vector3 normalizedDirection = relativePositionToAgent.normalized;
+            }
+        }
+        if (useSoundObservations)
+        {
 
-
-                currentSoundObservations.AddRange(new float[]
+            List<float> currentSoundObservations = new List<float>();
+            for (int i = 0; i < maxNearbyAgents; i++)
+            {
+                if (i < nearbyAgents.Count)
                 {
+                    AgentSoccer agent = nearbyAgents[i];
+                    Vector3 relativePositionToAgent = agent.transform.localPosition - transform.localPosition;
+                    Vector3 normalizedPosition = relativePositionToAgent / maxAgentDistance;
+
+                    // Normalize distance
+                    float normalizedDistance = relativePositionToAgent.magnitude / maxAgentDistance;
+                    normalizedDistance = Mathf.Clamp(normalizedDistance, 0f, 1f);
+
+                    // Normalize relative position
+                    Vector3 normalizedDirection = relativePositionToAgent.normalized;
+
+
+                    currentSoundObservations.AddRange(new float[]
+                    {
                     normalizedDirection.x,
                     normalizedDirection.y,
                     normalizedDirection.z,
@@ -318,20 +357,22 @@ public class AgentSoccer : Agent
                     normalizedPosition.y,
                         normalizedPosition.z
 
-                });
-            }
-            else
-            {
-                // Pad with zeroes
-                currentSoundObservations.AddRange(new float[]
+                    });
+                }
+                else
                 {
+                    // Pad with zeroes
+                    currentSoundObservations.AddRange(new float[]
+                    {
                     0f, 0f, 0f, // Direction
                     0f,
                     0f, 0f, 0f // Position
-                });
+                    });
+                }
             }
-        }
+       
         sensor.AddObservation(currentSoundObservations);
+        }
     }
 
 
@@ -340,7 +381,10 @@ public class AgentSoccer : Agent
     public override void OnEpisodeBegin()
     {
         // Reset the agent's position and velocity
-        memorySensor.Reset();
+        if(useMemory)
+            memorySensor.Reset();
+
+
         agentRb.velocity = Vector3.zero;
         agentRb.angularVelocity = Vector3.zero;
         transform.position = initialPos;
