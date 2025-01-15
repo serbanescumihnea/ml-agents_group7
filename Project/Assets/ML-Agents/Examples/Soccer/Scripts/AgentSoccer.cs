@@ -57,6 +57,8 @@ public class AgentSoccer : Agent
     public bool useMemory = true;
     public bool useSoundObservations = true;
 
+
+
  
 
     // Constants for normalization
@@ -69,7 +71,34 @@ public class AgentSoccer : Agent
     {
         SoccerEnvController envController = GetComponentInParent<SoccerEnvController>();
 
- 
+        m_ResetParams = Academy.Instance.EnvironmentParameters;
+        
+        if(m_ResetParams.GetWithDefault("vision", 0) == 1)
+        {
+            visionDecouple = true;
+        }
+        else
+        {
+            visionDecouple = false;
+        }
+      
+        if(m_ResetParams.GetWithDefault("memory", 0) == 1)
+        {
+            useMemory = true;
+        }
+        else
+        {
+            useMemory = false;
+        }
+       
+        if(m_ResetParams.GetWithDefault("sound", 0) == 1)
+        {
+            useSoundObservations = true;
+        }
+        else
+        {
+            useSoundObservations = false;
+        }
 
         if (envController != null)
         {
@@ -118,32 +147,34 @@ public class AgentSoccer : Agent
         agentRb.maxAngularVelocity = 500;
         nearbyAgents = new List<AgentSoccer>();
 
-
+       
         if (visionDecouple)
         {
             m_BehaviorParameters.BrainParameters.ActionSpec = new ActionSpec(0, new int[]{ 3, 3, 3, 3 });
+            m_BehaviorParameters.BrainParameters.VectorObservationSize += 3;
         }
 
 
         if (useMemory) {
             memorySensor = this.GetComponent<MemorySensorComponent>().createSensor();
-            m_BehaviorParameters.BrainParameters.VectorObservationSize += 110; 
+            m_BehaviorParameters.BrainParameters.VectorObservationSize += 66; 
         }
         if (useSoundObservations)
         {
             SphereCollider hearingCollider = gameObject.AddComponent<SphereCollider>();
             hearingCollider.isTrigger = true;
             hearingCollider.radius = 6f;
-            m_BehaviorParameters.BrainParameters.VectorObservationSize += 21;
+            m_BehaviorParameters.BrainParameters.VectorObservationSize += 9;
         }
       
        
 
-        m_ResetParams = Academy.Instance.EnvironmentParameters;
+       
 
        
     }
 
+    
     private void OnTriggerEnter(Collider other)
     {
         var agent = other.GetComponent<AgentSoccer>();
@@ -168,14 +199,8 @@ public class AgentSoccer : Agent
         }
     }
 
-    public void addGoalReward()
-    {
-        AddReward(0.75f);
-    }
-    public void addGoalPunishment()
-    {
-        AddReward(-0.75f);
-    }
+
+
 
 
     public void MoveAgent(ActionSegment<int> act)
@@ -223,7 +248,7 @@ public class AgentSoccer : Agent
         }
 
         // Head rotation (independent of movement direction)
-        if (visionDecouple) { 
+        if (visionDecouple) {
             var headRotateAxis = act[3];
             switch (headRotateAxis)
             {
@@ -234,8 +259,25 @@ public class AgentSoccer : Agent
                     headRotateDir = Vector3.up * 1f;
                     break;
             }
-            // Apply head rotation to headTransform
-            headTransform.Rotate(headRotateDir, Time.deltaTime * 100f, Space.Self);
+
+            // Get the current Y-axis rotation
+            float currentYRotation = headTransform.localEulerAngles.y;
+
+            // Normalize the angle to [-180, 180] range
+            if (currentYRotation > 180f)
+                currentYRotation -= 360f;
+
+            // Calculate the new potential rotation
+            float rotationDelta = headRotateDir.y * Time.deltaTime * 100f;
+            float newYRotation = currentYRotation + rotationDelta;
+
+            newYRotation = Mathf.Clamp(newYRotation, -90f, 90f);
+
+            headTransform.localEulerAngles = new Vector3(
+       headTransform.localEulerAngles.x,
+       newYRotation,
+       headTransform.localEulerAngles.z
+   );
         }
 
         transform.Rotate(rotateDir, Time.deltaTime * 100f);
@@ -245,6 +287,8 @@ public class AgentSoccer : Agent
 
         // Apply movement
         agentRb.AddForce(dirToGo * m_SoccerSettings.agentRunSpeed, ForceMode.VelocityChange);
+
+     
     }
 
     public override void Heuristic(in ActionBuffers actionsOut)
@@ -311,13 +355,18 @@ public class AgentSoccer : Agent
             var dir = c.contacts[0].point - transform.position;
             dir = dir.normalized;
             c.gameObject.GetComponent<Rigidbody>().AddForce(dir * force);
-            
-          
+       
         }
     }
 
     public override void CollectObservations(VectorSensor sensor)
     {
+        if (visionDecouple)
+        {
+            sensor.AddObservation(headTransform.transform.rotation.eulerAngles / 180f);
+           
+        }
+
         if (useMemory)
         {
             memorySensor.Update();
@@ -336,27 +385,20 @@ public class AgentSoccer : Agent
                 if (i < nearbyAgents.Count)
                 {
                     AgentSoccer agent = nearbyAgents[i];
-                    Vector3 relativePositionToAgent = agent.transform.localPosition - transform.localPosition;
-                    Vector3 normalizedPosition = relativePositionToAgent / maxAgentDistance;
+                    float relativeDistance =  Vector3.Distance(agent.transform.localPosition,transform.localPosition);
+                    Vector3 directionVector = (agent.transform.localPosition - transform.localPosition).normalized;
 
+
+                    float normalizedDistance = relativeDistance / maxAgentDistance;
+                    
                     // Normalize distance
-                    float normalizedDistance = relativePositionToAgent.magnitude / maxAgentDistance;
-                    normalizedDistance = Mathf.Clamp(normalizedDistance, 0f, 1f);
-
-                    // Normalize relative position
-                    Vector3 normalizedDirection = relativePositionToAgent.normalized;
-
+                   
 
                     currentSoundObservations.AddRange(new float[]
                     {
-                    normalizedDirection.x,
-                    normalizedDirection.y,
-                    normalizedDirection.z,
-                    normalizedDistance,
-                    normalizedPosition.x,
-                    normalizedPosition.y,
-                        normalizedPosition.z
-
+                        normalizedDistance,
+                        directionVector.x,
+                        directionVector.y,
                     });
                 }
                 else
@@ -364,8 +406,6 @@ public class AgentSoccer : Agent
                     // Pad with zeroes
                     currentSoundObservations.AddRange(new float[]
                     {
-                    0f, 0f, 0f, // Direction
-                    0f,
                     0f, 0f, 0f // Position
                     });
                 }
@@ -383,7 +423,7 @@ public class AgentSoccer : Agent
         // Reset the agent's position and velocity
         if(useMemory)
             memorySensor.Reset();
-
+        
 
         agentRb.velocity = Vector3.zero;
         agentRb.angularVelocity = Vector3.zero;

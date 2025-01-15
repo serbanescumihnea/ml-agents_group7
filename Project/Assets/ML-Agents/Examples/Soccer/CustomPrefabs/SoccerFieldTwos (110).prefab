@@ -239,6 +239,8 @@ MonoBehaviour:
     StartingPos: {x: 0, y: 0, z: 0}
     StartingRot: {x: 0, y: 0, z: 0, w: 0}
     Rb: {fileID: 0}
+  blueTeamPossession: 0
+  purpleTeamPossession: 0
 --- !u!1 &880171966695196570
 GameObject:
   m_ObjectHideFlags: 0
@@ -1538,7 +1540,7 @@ MonoBehaviour:
     VectorActionDescriptions: []
     VectorActionSpaceType: 0
     hasUpgradedBrainParametersWithActionSpec: 1
-  m_Model: {fileID: 5022602860645237092, guid: 2dcd6ac56d3883549bd5ff90d302c198, type: 3}
+  m_Model: {fileID: 5022602860645237092, guid: 630e4b85ba3b97f4e94c5bbb9c9b3295, type: 3}
   m_InferenceDevice: 2
   m_BehaviorType: 0
   m_BehaviorName: SoccerTwos
@@ -1573,6 +1575,9 @@ MonoBehaviour:
   ownGoal: {fileID: 3467518231216113112}
   opponentGoal: {fileID: 1232386147591728300}
   headTransform: {fileID: 4638580648596283343}
+  visionDecouple: 1
+  useMemory: 1
+  useSoundObservations: 1
 --- !u!114 &5085489562090045942
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1754,7 +1759,7 @@ MonoBehaviour:
     VectorActionDescriptions: []
     VectorActionSpaceType: 0
     hasUpgradedBrainParametersWithActionSpec: 1
-  m_Model: {fileID: 5022602860645237092, guid: 2dcd6ac56d3883549bd5ff90d302c198, type: 3}
+  m_Model: {fileID: 5022602860645237092, guid: 630e4b85ba3b97f4e94c5bbb9c9b3295, type: 3}
   m_InferenceDevice: 2
   m_BehaviorType: 0
   m_BehaviorName: SoccerTwos
@@ -1789,6 +1794,9 @@ MonoBehaviour:
   ownGoal: {fileID: 1232386147591728300}
   opponentGoal: {fileID: 3467518231216113112}
   headTransform: {fileID: 4978068962310583423}
+  visionDecouple: 1
+  useMemory: 1
+  useSoundObservations: 1
 --- !u!114 &6520257233087445656
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2578,7 +2586,7 @@ MonoBehaviour:
     VectorActionDescriptions: []
     VectorActionSpaceType: 0
     hasUpgradedBrainParametersWithActionSpec: 1
-  m_Model: {fileID: 5022602860645237092, guid: 2dcd6ac56d3883549bd5ff90d302c198, type: 3}
+  m_Model: {fileID: 5022602860645237092, guid: 630e4b85ba3b97f4e94c5bbb9c9b3295, type: 3}
   m_InferenceDevice: 2
   m_BehaviorType: 0
   m_BehaviorName: SoccerTwos
@@ -2613,6 +2621,9 @@ MonoBehaviour:
   ownGoal: {fileID: 3467518231216113112}
   opponentGoal: {fileID: 1232386147591728300}
   headTransform: {fileID: 946055737947134832}
+  visionDecouple: 1
+  useMemory: 1
+  useSoundObservations: 1
 --- !u!114 &6025147521625936512
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3337,7 +3348,7 @@ MonoBehaviour:
     VectorActionDescriptions: []
     VectorActionSpaceType: 0
     hasUpgradedBrainParametersWithActionSpec: 1
-  m_Model: {fileID: 5022602860645237092, guid: 2dcd6ac56d3883549bd5ff90d302c198, type: 3}
+  m_Model: {fileID: 5022602860645237092, guid: 630e4b85ba3b97f4e94c5bbb9c9b3295, type: 3}
   m_InferenceDevice: 2
   m_BehaviorType: 0
   m_BehaviorName: SoccerTwos
@@ -3372,6 +3383,9 @@ MonoBehaviour:
   ownGoal: {fileID: 1232386147591728300}
   opponentGoal: {fileID: 3467518231216113112}
   headTransform: {fileID: 7507343759275637644}
+  visionDecouple: 1
+  useMemory: 1
+  useSoundObservations: 1
 --- !u!114 &232328805952692725
 MonoBehaviour:
   m_ObjectHideFlags: 0

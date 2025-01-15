@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.MLAgents.Policies;
 using Unity.MLAgents.Sensors;
 using UnityEngine;
 
@@ -7,15 +8,18 @@ public class MemorySensor : ISensor
 {
 
     RayPerceptionSensorComponent3D rayPerceptionSensor;
+    AgentSoccer agent;
+
+
     public Queue<float[]> memory;
-    public int capacity = 5;
+    public int capacity = 3;
 
 
-    public MemorySensor(RayPerceptionSensorComponent3D rayPerceptionSensor)
+    public MemorySensor(RayPerceptionSensorComponent3D rayPerceptionSensor, AgentSoccer agent)
     {
         this.rayPerceptionSensor = rayPerceptionSensor;
         memory = new Queue<float[]>();
-   
+        this.agent = agent;
     }
 
     public void Update()
@@ -24,13 +28,18 @@ public class MemorySensor : ISensor
         RayPerceptionInput input = rayPerceptionSensor.GetRayPerceptionInput();
         RayPerceptionOutput output = RayPerceptionSensor.Perceive(input, false);
 
+        
+
         List<float> currentOutputs = new List<float>();
         for(int i = 0; i < output.RayOutputs.Length; i++)
         {
+            
             currentOutputs.Add(output.RayOutputs[i].HitTagIndex);
             currentOutputs.Add(output.RayOutputs[i].HitFraction);
+           
 
         }
+       
 
         if (memory.Count >= capacity)
         {

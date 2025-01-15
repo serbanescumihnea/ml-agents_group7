@@ -38,9 +38,7 @@ public class SoccerEnvController : MonoBehaviour
     [SerializeField]
     private GameObject purpleGoal;
 
-    // Resetable rewards
-    private float purpleBallToGoalReward = 0;
-    private float blueBallToGoalReward = 0;
+   
 
 
     public GameObject ball;
@@ -61,6 +59,8 @@ public class SoccerEnvController : MonoBehaviour
     public int purpleTeamPossession = 0;
 
     private BallController m_BallController;
+
+    private ScoreTracker ScoreTracker;
 
     private int m_ResetTimer;
 
@@ -90,6 +90,7 @@ public class SoccerEnvController : MonoBehaviour
                 m_PurpleAgentGroup.RegisterAgent(item.Agent);
             }
         }
+        ScoreTracker = FindObjectOfType<ScoreTracker>();
         ResetScene();
     }
 
@@ -103,31 +104,12 @@ public class SoccerEnvController : MonoBehaviour
             m_PurpleAgentGroup.GroupEpisodeInterrupted();
             ResetScene();
         }
-        
-       
-    }
+      
 
-    void addBallDistanceToGoalReward()
-    {
-       Vector3 ballPos = ball.transform.position;
-       Vector3 blueGoalPos = blueGoal.transform.position;
-       Vector3 purpleGoalPos = purpleGoal.transform.position;
-
-        // Out of 32 for both
-        float distanceToBlueGoal = Vector3.Distance(ballPos, blueGoalPos);
-        float distanceToPurpleGoal = Vector3.Distance(ballPos, purpleGoalPos);
-
-        float purpleReward = 1 - distanceToBlueGoal / 32;
-        float blueReward = 1 - distanceToPurpleGoal / 32;
-        purpleBallToGoalReward += purpleReward;
-        blueBallToGoalReward += blueReward;
-
-        float normalizedPurpleRewardForDistance = purpleBallToGoalReward / m_ResetTimer;
-        float normalizedBlueRewardForDistance = blueBallToGoalReward / m_ResetTimer;
-        m_BlueAgentGroup.AddGroupReward(normalizedBlueRewardForDistance);
-        m_PurpleAgentGroup.AddGroupReward(normalizedPurpleRewardForDistance);
 
     }
+
+   
 
 
     public void ResetBall()
@@ -148,13 +130,18 @@ public class SoccerEnvController : MonoBehaviour
 
         if (scoredTeam == Team.Blue)
         {
-            m_BlueAgentGroup.AddGroupReward(1 );
+            
+            m_BlueAgentGroup.AddGroupReward(1 - (float)m_ResetTimer/MaxEnvironmentSteps );
             m_PurpleAgentGroup.AddGroupReward(-1);
+            ScoreTracker.GoalScored(Team.Blue);
         }
         else
         {
-            m_PurpleAgentGroup.AddGroupReward(1 );
+           
+            m_PurpleAgentGroup.AddGroupReward(1 - (float)m_ResetTimer / MaxEnvironmentSteps);
             m_BlueAgentGroup.AddGroupReward(-1);
+
+            ScoreTracker.GoalScored(Team.Purple);
         }
        
 
@@ -169,8 +156,7 @@ public class SoccerEnvController : MonoBehaviour
     {
         m_ResetTimer = 0;
 
-        purpleBallToGoalReward = 0;
-        blueBallToGoalReward = 0;
+      
 
         blueTeamPossession = 0;
         purpleTeamPossession = 0;

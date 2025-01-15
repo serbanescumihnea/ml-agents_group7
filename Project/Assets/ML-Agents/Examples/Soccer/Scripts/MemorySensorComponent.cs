@@ -9,8 +9,8 @@ public class MemorySensorComponent : MonoBehaviour
     public RayPerceptionSensorComponent3D rayPerceptionSensor;
     public MemorySensor createSensor()
     {
-      
-        MemorySensor sensor = new MemorySensor(rayPerceptionSensor);
+        AgentSoccer agent = GetComponent<AgentSoccer>();
+        MemorySensor sensor = new MemorySensor(rayPerceptionSensor, agent);
         return sensor;
     }
 
