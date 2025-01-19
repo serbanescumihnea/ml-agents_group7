@@ -5,8 +5,8 @@ using UnityEngine;
 
 public class ScoreTracker : MonoBehaviour
 {
-    private int blueGoals = 0;
-    private int purpleGoals = 0;
+    public int blueGoals = 0;
+    public int purpleGoals = 0;
 
 
     public TMP_Text blueScoreText;

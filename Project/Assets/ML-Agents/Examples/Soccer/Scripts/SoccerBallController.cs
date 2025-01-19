@@ -10,6 +10,7 @@ public class SoccerBallController : MonoBehaviour
 
     public AgentSoccer lastTouchedBy;
 
+
     void Start()
     {
         envController = area.GetComponent<SoccerEnvController>();
@@ -25,6 +26,7 @@ public class SoccerBallController : MonoBehaviour
         if (col.gameObject.CompareTag(purpleGoalTag)) //ball touched purple goal
         {
             envController.GoalTouched(Team.Blue);
+
         }
         if (col.gameObject.CompareTag(blueGoalTag)) //ball touched blue goal
         {

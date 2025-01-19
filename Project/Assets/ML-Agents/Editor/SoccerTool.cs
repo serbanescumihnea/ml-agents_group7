@@ -1,48 +1,42 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
-using System;
-using System.Linq;
+using Unity.MLAgents.Policies;
+using Unity.Sentis;
 
 public class SoccerTool : EditorWindow
 {
-    // Field configuration
+    // Constants
+    private const int PLAYING_FIELDS_ROWS = 8;
+    private const int PLAYING_FIELDS_COLUMNS = 8;
+
+
+    // Configuration Fields
     private GameObject soccerFieldPrefab;
     private int rows = 3;
     private int columns = 3;
     private float spacing = 50f;
-
     private Vector3 startPosition = Vector3.zero;
 
-
-    // Agent data
+    // Agent and Team Data
     private List<GameObject> agents = new List<GameObject>();
+    private List<GameObject> blueTeamAgents = new List<GameObject>();
+    private List<GameObject> purpleTeamAgents = new List<GameObject>();
 
-    // Agent configuration
+    // Agent Configuration
     private bool visionDecouple = true;
     private bool useMemory = true;
     private bool useSoundObservations = true;
 
-    
+    // Training Mode
+    private bool isTraining = false;
 
+    // ONNX Models
+    public ModelAsset blueTeamModel;
+    public ModelAsset purpleTeamModel;
 
-    private void OnEnable()
-    {
-       
-        LoadAgentData();
-        
-    }
-    private void LoadAgentData()
-    {
-        agents.Clear();
-        agents.AddRange(GameObject.FindGameObjectsWithTag("purpleAgent"));
-        agents.AddRange(GameObject.FindGameObjectsWithTag("blueAgent"));
-
-        Debug.Log($"Found {agents.Count} agents.");
-    }
-
-
+    private bool blueVision = false, blueMemory = false, blueSound = false;
+    private bool purpleVision = false, purpleMemory = false, purpleSound = false;
 
     [MenuItem("Tools/Soccer Configuration")]
     public static void ShowWindow()
@@ -50,206 +44,237 @@ public class SoccerTool : EditorWindow
         GetWindow<SoccerTool>("Soccer Configuration");
     }
 
+    private void OnEnable()
+    {
+        LoadAgentData();
+    }
+
     private void OnGUI()
     {
-        GUILayout.Label("Soccer Field Configuration", EditorStyles.boldLabel);
+        DrawHeader("Soccer Field Configuration");
 
         soccerFieldPrefab = (GameObject)EditorGUILayout.ObjectField("Soccer Field Prefab", soccerFieldPrefab, typeof(GameObject), false);
+
+        isTraining = EditorGUILayout.Toggle("Training Mode", isTraining);
+        if (isTraining)
+        {
+            DrawTrainingMenu();
+        }
+        else
+        {
+            DrawPlayingMenu();
+        }
+    }
+
+    private void DrawTrainingMenu()
+    {
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("Table Configuration", EditorStyles.boldLabel);
         rows = EditorGUILayout.IntField("Rows", rows);
         columns = EditorGUILayout.IntField("Columns", columns);
         spacing = EditorGUILayout.FloatField("Spacing", spacing);
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("Functionality", EditorStyles.boldLabel);
+        DrawAgentSettings();
 
-        if (GUILayout.Button("Generate Field"))
-        {
-            SpawnFields();
-        }
-        if(GUILayout.Button("Delete fields"))
-        {
-            DeleteFields();
-        }
+        EditorGUILayout.Space();
+        if (GUILayout.Button("Generate Field")) SpawnFields();
+        if (GUILayout.Button("Delete Fields")) DeleteFields();
 
-
-        createSensorConfigMenu();
         
     }
 
-    private void createSensorConfigMenu()
+    private void DrawPlayingMenu()
     {
-        bool previousVision = visionDecouple;
-        bool previousMemory = useMemory;
-        bool previousSound = useSoundObservations;
+        DrawHeader("ONNX Models", 15);
 
+        DrawTeamModelSettings("Blue Team", ref blueTeamModel, ref blueVision, ref blueMemory, ref blueSound);
+        DrawTeamModelSettings("Purple Team", ref purpleTeamModel, ref purpleVision, ref purpleMemory, ref purpleSound);
+
+        if (GUILayout.Button("Generate 1v1 Environments")) GenerateBenchmarkEnvironments();
+
+        if (GameObject.Find("Spawned Objects") != null && GUILayout.Button("Delete Fields")) DeleteFields();
+
+        if (GameObject.Find("Logger")==null && GUILayout.Button("Use Logger"))
+        {
+            AddLogger();
+        }
+    }
+
+    private void AddLogger()
+    {
+        GameObject parent = new GameObject("Logger");
+        parent.AddComponent<ScoreLogger>();
+    }
+
+    private void DrawTeamModelSettings(string teamName, ref ModelAsset model, ref bool vision, ref bool memory, ref bool sound)
+    {
+        EditorGUILayout.LabelField(teamName, EditorStyles.boldLabel);
+        model = (ModelAsset)EditorGUILayout.ObjectField("Model", model, typeof(ModelAsset), false);
+
+        vision = EditorGUILayout.Toggle("Vision", vision);
+        memory = EditorGUILayout.Toggle("Memory", memory);
+        sound = EditorGUILayout.Toggle("Sound", sound);
+        EditorGUILayout.Space();
+    }
+
+    private void DrawAgentSettings()
+    {
         visionDecouple = EditorGUILayout.Toggle("Vision Decouple", visionDecouple);
-        if (visionDecouple)
-        {
-            EditorGUILayout.HelpBox("Vision Decoupling is enabled. The head of the agents will rotate independently from the body.", MessageType.Warning);
-        }
-        else
-        {
-            EditorGUILayout.HelpBox("Vision Decoupling is disabled. The head of the agents will rotate with the body.", MessageType.Info);
-        }
-        if (previousVision != visionDecouple)
-        {
-            if (visionDecouple)
-            {
-                EditorGUILayout.HelpBox("Vision Decoupling is enabled. The head of the agents will rotate independently from the body.", MessageType.Warning);
-                toggleVisionDecouple(true);
-            }
-            else
-            {
-                EditorGUILayout.HelpBox("Vision Decoupling is disabled. The head of the agents will rotate with the body.", MessageType.Info);
-                toggleVisionDecouple(false);
-            }
-        }
-
-
-
-
-
-
         useMemory = EditorGUILayout.Toggle("Use Memory", useMemory);
-        if (useMemory)
-        {
-            EditorGUILayout.HelpBox("Memory is enabled. The agents will have a memory sensor.", MessageType.Info);
-           
-        }
-        else
-        {
-            EditorGUILayout.HelpBox("Memory is disabled. The agents will not have a memory sensor.", MessageType.Warning);
-           
-        }
-        if (previousMemory != useMemory)
-        {
-            if (useMemory)
-            {
-                EditorGUILayout.HelpBox("Memory is enabled. The agents will have a memory sensor.", MessageType.Info);
-                toggleMemory(true);
-            }
-            else
-            {
-                EditorGUILayout.HelpBox("Memory is disabled. The agents will not have a memory sensor.", MessageType.Warning);
-                toggleMemory(false);
-            }
-        }
-
         useSoundObservations = EditorGUILayout.Toggle("Use Sound Observations", useSoundObservations);
-        if (useSoundObservations)
+    }
+
+    private void DrawHeader(string title, int spacing = 20)
+    {
+        EditorGUILayout.Space(spacing);
+        GUILayout.Label(title, EditorStyles.boldLabel);
+        EditorGUILayout.Space();
+    }
+
+    private void LoadAgentData()
+    {
+        agents.Clear();
+        agents.AddRange(GameObject.FindGameObjectsWithTag("purpleAgent"));
+        agents.AddRange(GameObject.FindGameObjectsWithTag("blueAgent"));
+        Debug.Log($"Found {agents.Count} agents.");
+    }
+
+    private void LoadTeamData()
+    {
+        purpleTeamAgents.Clear();
+        purpleTeamAgents.AddRange(GameObject.FindGameObjectsWithTag("purpleAgent"));
+
+        blueTeamAgents.Clear();
+        blueTeamAgents.AddRange(GameObject.FindGameObjectsWithTag("blueAgent"));
+    }
+
+    private void SpawnFields()
+    {
+        if (ValidateFieldInputs())
         {
-            EditorGUILayout.HelpBox("Sound Observations are enabled. The agents will have a sound sensor.", MessageType.Info);
-           
-        }
-        else
-        {
-            EditorGUILayout.HelpBox("Sound Observations are disabled. The agents will not have a sound sensor.", MessageType.Warning);
-            
-        }
-        if (previousSound!=useSoundObservations)
-        {
-            if (useSoundObservations)
+            DestroyImmediate(GameObject.Find("Logger"));
+
+            GameObject parentObject = new GameObject("Spawned Objects");
+
+            for (int i = 0; i < rows; i++)
             {
-                EditorGUILayout.HelpBox("Sound Observations are enabled. The agents will have a sound sensor.", MessageType.Info);
-                toggleSoundObservations(true);
+                for (int j = 0; j < columns; j++)
+                {
+                    Vector3 spawnPosition = startPosition + new Vector3(i * spacing, 0, j * spacing);
+                    GameObject field = Instantiate(soccerFieldPrefab, spawnPosition, Quaternion.identity);
+                    field.transform.parent = parentObject.transform;
+                }
             }
-            else
-            {
-                EditorGUILayout.HelpBox("Sound Observations are disabled. The agents will not have a sound sensor.", MessageType.Warning);
-                toggleSoundObservations(false);
-            }
+
+            LoadAgentData();
+            ApplyAgentSettings();
+
+            Debug.Log($"Generated {rows * columns} fields ({rows}x{columns}).");
         }
     }
 
-    private void SpawnFields(){
-        if (soccerFieldPrefab == null)
-        {
-            Debug.LogError("Please assign a soccer field prefab");
-            return;
-        }
-        if(rows <= 0 || columns <= 0)
-        {
-            Debug.LogError("Rows and columns must be greater than 0");
-            return;
-        }
-        if(GameObject.Find("Spawned Objects") != null)
-        {
-            Debug.LogError("Please delete the existing fields before spawning new ones");
-            return;
-        }
-
-        GameObject parentObject = new GameObject("Spawned Objects");
-
-
-        // Spawn the fields in a grid-like style
-        for(int i = 0; i < rows; i++)
-        {
-            for(int j=0; j < columns; j++)
-            {
-                Vector3 spawnPosition = startPosition + new Vector3(i * spacing, 0, j * spacing);
-                GameObject spawnedField = Instantiate(soccerFieldPrefab, spawnPosition, Quaternion.identity);
-                spawnedField.transform.position = spawnPosition;
-                spawnedField.transform.parent = parentObject.transform;
-            }
-        }
-
-        LoadAgentData();
-
-        visionDecouple = true;
-        toggleVisionDecouple(true);
-        useMemory = true;
-        toggleMemory(true);
-        useSoundObservations = true;
-        toggleSoundObservations(true);
-
-        Debug.Log($"Successfully activated {rows * columns} soccer fields in the formation {rows} x {columns}.");
-    }
-
-
-    //Delete the spawned fields if there are any
     private void DeleteFields()
     {
+        GameObject.DestroyImmediate(GameObject.Find("Logger")); 
         GameObject parentObject = GameObject.Find("Spawned Objects");
         if (parentObject != null)
         {
-            agents.Clear();
             DestroyImmediate(parentObject);
-
-            visionDecouple = true;
-            useMemory = true;
-            useSoundObservations = true;
-
-            Debug.Log("Deleted all spawned fields.");
+            ResetSettings();
+            Debug.Log("All fields deleted.");
         }
         else
         {
-            Debug.Log("No spawned fields to delete.");
-        }   
-    }
-
-    private void toggleVisionDecouple(bool enabled)
-    {
-        foreach (GameObject item in agents)
-        {
-            AgentSoccer agentSoccerScript = item.GetComponent<AgentSoccer>();
-            agentSoccerScript.visionDecouple = enabled;
+            Debug.LogWarning("No fields to delete.");
         }
     }
 
-    private void toggleMemory(bool enabled)
+    private void GenerateBenchmarkEnvironments()
     {
-        foreach (GameObject item in agents)
+        GameObject parentObject = new GameObject("Spawned Objects");
+
+        for (int i = 0; i < PLAYING_FIELDS_ROWS; i++)
         {
-            AgentSoccer agentSoccerScript = item.GetComponent<AgentSoccer>();
-            agentSoccerScript.useMemory = enabled;
+            for (int j = 0; j < PLAYING_FIELDS_COLUMNS; j++)
+            {
+                Vector3 spawnPosition = startPosition + new Vector3(i * spacing, 0, j * spacing);
+                GameObject field = Instantiate(soccerFieldPrefab, spawnPosition, Quaternion.identity);
+                field.transform.parent = parentObject.transform;
+            }
+        }
+
+        LoadTeamData();
+        ApplyTeamSettings();
+    }
+
+    private void ApplyAgentSettings()
+    {
+        ToggleAgentFeature(visionDecouple, agent => agent.visionDecouple = visionDecouple);
+        ToggleAgentFeature(useMemory, agent => agent.useMemory = useMemory);
+        ToggleAgentFeature(useSoundObservations, agent => agent.useSoundObservations = useSoundObservations);
+    }
+
+    private void ApplyTeamSettings()
+    {
+        ApplyModelSettings(blueTeamAgents, blueTeamModel, blueVision, blueMemory, blueSound);
+        ApplyModelSettings(purpleTeamAgents, purpleTeamModel, purpleVision, purpleMemory, purpleSound);
+    }
+
+    private void ApplyModelSettings(List<GameObject> team, ModelAsset model, bool vision, bool memory, bool sound)
+    {
+        foreach (GameObject agent in team)
+        {
+            var behavior = agent.GetComponent<BehaviorParameters>();
+            if (behavior != null) behavior.Model = model;
+
+            var agentScript = agent.GetComponent<AgentSoccer>();
+            if (agentScript != null)
+            {
+                agentScript.visionDecouple = vision;
+                agentScript.useMemory = memory;
+                agentScript.useSoundObservations = sound;
+            }
         }
     }
 
-    private void toggleSoundObservations(bool enabled)
+    private void ToggleAgentFeature(bool enabled, System.Action<AgentSoccer> action)
     {
-        foreach (GameObject item in agents)
+        foreach (var agent in agents)
         {
-            AgentSoccer agentSoccerScript = item.GetComponent<AgentSoccer>();
-            agentSoccerScript.useSoundObservations = enabled;
+            var agentScript = agent.GetComponent<AgentSoccer>();
+            if (agentScript != null) action(agentScript);
         }
     }
 
-   
+    private bool ValidateFieldInputs()
+    {
+        if (soccerFieldPrefab == null)
+        {
+            Debug.LogError("Assign a Soccer Field Prefab.");
+            return false;
+        }
+
+        if (rows <= 0 || columns <= 0)
+        {
+            Debug.LogError("Rows and columns must be greater than 0.");
+            return false;
+        }
+
+        if (GameObject.Find("Spawned Objects") != null)
+        {
+            Debug.LogError("Delete existing fields before spawning new ones.");
+            return false;
+        }
+
+        return true;
+    }
+
+    private void ResetSettings()
+    {
+        agents.Clear();
+        visionDecouple = useMemory = useSoundObservations = true;
+        blueVision = blueMemory = blueSound = false;
+        purpleVision = purpleMemory = purpleSound = false;
+    }
 }

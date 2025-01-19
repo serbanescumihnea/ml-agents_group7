@@ -73,7 +73,7 @@ public class AgentSoccer : Agent
 
         m_ResetParams = Academy.Instance.EnvironmentParameters;
         
-        if(m_ResetParams.GetWithDefault("vision", 0) == 1)
+        if(m_ResetParams.GetWithDefault("vision", visionDecouple ? 1:0) == 1)
         {
             visionDecouple = true;
         }
@@ -82,7 +82,7 @@ public class AgentSoccer : Agent
             visionDecouple = false;
         }
       
-        if(m_ResetParams.GetWithDefault("memory", 0) == 1)
+        if(m_ResetParams.GetWithDefault("memory", useMemory ? 1 : 0) == 1)
         {
             useMemory = true;
         }
@@ -91,7 +91,7 @@ public class AgentSoccer : Agent
             useMemory = false;
         }
        
-        if(m_ResetParams.GetWithDefault("sound", 0) == 1)
+        if(m_ResetParams.GetWithDefault("sound", useSoundObservations ? 1 : 0) == 1)
         {
             useSoundObservations = true;
         }
@@ -361,6 +361,7 @@ public class AgentSoccer : Agent
 
     public override void CollectObservations(VectorSensor sensor)
     {
+        base.CollectObservations(sensor);
         if (visionDecouple)
         {
             sensor.AddObservation(headTransform.transform.rotation.eulerAngles / 180f);

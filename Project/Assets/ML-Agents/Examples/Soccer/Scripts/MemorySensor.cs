@@ -33,7 +33,9 @@ public class MemorySensor : ISensor
         List<float> currentOutputs = new List<float>();
         for(int i = 0; i < output.RayOutputs.Length; i++)
         {
-            
+           
+
+
             currentOutputs.Add(output.RayOutputs[i].HitTagIndex);
             currentOutputs.Add(output.RayOutputs[i].HitFraction);
            
